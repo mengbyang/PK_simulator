@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#133e4b">
+  <title>PK Data Explorer — concentration plots & descriptive statistics</title>
+  <link rel="stylesheet" href="./style.css">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script defer src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <script defer src="./core.js"></script>
+  <script defer src="./app.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner"><a class="wordmark" href="./" aria-label="PK Data Explorer home"><span class="logo">PK<span>·</span></span><span>PK Data Explorer <small>Concentration–time analysis</small></span></a>
+  <span class="privacy-label">◉ Local browser processing · no data upload</span></div>
+</header>
+<main class="page">
+  <section class="page-intro"><div><span class="eyebrow">BIOANALYTICAL DATA WORKBENCH</span><h1>From sample results to publication-ready profiles.</h1><p>Import a sample-level CSV or Excel file. Choose your grouping variables and generate concentration–time plots and descriptive-statistics tables.</p></div><span class="release">Version 1.0</span></section>
+
+  <section class="panel import-panel" aria-label="Data import">
+    <div class="panel-top"><div><h2><span class="step">01</span> Import your data</h2><p>Each input row represents one measured sample. Blank or nonnumeric values are omitted from statistics; numeric zeros are included.</p></div></div>
+    <div class="import-actions"><label class="file-button" for="file-input">↥ Choose CSV or Excel file</label><input type="file" id="file-input" accept=".csv,.txt,.xlsx,.xls"><button id="demo-button" class="button secondary" type="button">Load synthetic example</button><span class="small-hint">.csv · .txt · .xlsx · .xls</span></div>
+    <div id="import-details" hidden>
+      <div class="dataset-header"><strong id="dataset-name"></strong><span id="dataset-count" class="tag"></span></div>
+      <div class="mapping-grid">
+        <label class="field">Worksheet <select id="sheet-select"></select></label>
+        <label class="field">Sampling time <select id="time-select"></select></label>
+        <label class="field">Concentration <select id="conc-select"></select></label>
+        <label class="field">Animal / subject ID <select id="animal-select"></select></label>
+      </div>
+      <p class="help">All other metadata columns are available for grouping and filtering. Calculations use unrounded source values.</p>
+    </div>
+  </section>
+
+  <div id="workspace" hidden>
+    <section class="panel filters-panel"><div class="panel-top"><div><h2><span class="step">02</span> Filter and configure</h2><p>Choose which records to include, and how plots and summary tables should be organized.</p></div><button id="reset-filters" class="button ghost small" type="button">Reset filters</button></div>
+      <details id="filter-disclosure"><summary>Data filters <span class="hint-inline">(optional; all records included by default)</span></summary><div id="filters" class="filter-grid"></div></details>
+      <div class="config-grid">
+        <fieldset class="config-card"><legend>Plot arrangement</legend>
+          <label class="field">Panel rows<select id="facet-row"></select></label>
+          <label class="field">Panel columns<select id="facet-col"></select></label>
+          <div class="field"><span>Separate curves by (multiple variables allowed)</span><div id="series-picks" class="picks"></div></div>
+          <div class="two-col"><label class="field">Profiles<select id="plot-mode"><option value="mean_sd">Mean ± SD</option><option value="mean">Mean only</option><option value="individual">Individual animals</option><option value="mean_individual">Mean + individual points</option></select></label>
+          <label class="field">Y-axis scale<select id="y-scale"><option value="log">Log10</option><option value="linear">Linear</option></select></label></div>
+          <label class="field">Y-axis label<input id="y-label" type="text" placeholder="Concentration (ng/g)"></label>
+        </fieldset>
+        <fieldset class="config-card"><legend>Summary table</legend>
+          <label class="field">Group rows by (in this order)</label><div id="stats-group-picks" class="group-list"></div>
+          <div class="add-group"><select id="stats-add-select" aria-label="Add grouping variable"></select><button id="stats-add" class="button secondary small" type="button">Add</button></div>
+          <label class="field">Individual value rows<select id="individual-layout"><option value="replicate">Replicate position (sparse sampling)</option><option value="animal">Animal ID (serial sampling)</option></select></label>
+          <div class="two-col"><label class="field">Significant digits<input id="sig-digits" type="number" value="3" min="1" max="12" step="1"></label>
+          <label class="field">Number format<select id="number-style"><option value="decimal">Decimal</option><option value="scientific">Scientific notation</option></select></label></div>
+          <p class="help">Precision affects display and report exports only; mean, SD, and CV% are calculated from the original unrounded numbers.</p>
+        </fieldset>
+      </div>
+    </section>
+
+    <section class="panel outputs"><div class="panel-top output-heading"><div><h2><span class="step">03</span> Results and downloads</h2><p id="result-info"></p></div></div>
+      <nav class="tabs" aria-label="Output views"><button class="tab active" data-tab="plots" type="button">Concentration–time plots</button><button class="tab" data-tab="summary" type="button">Statistical summary</button><button class="tab" data-tab="plotdata" type="button">Plot dataset</button></nav>
+      <section id="plots-pane" class="tab-pane"><div class="exportbar"><p>Points are connected with straight lines only; no fitted or smoothed curves.</p><div><button id="export-png" class="button primary small">↓ PNG figure</button><button id="export-svg" class="button secondary small">↓ SVG figure</button></div></div><div class="chart-scroller"><div id="chart"></div></div><p id="plot-note" class="help">For log plots, nonpositive concentrations are not displayed, but they remain included in the statistics.</p></section>
+      <section id="summary-pane" class="tab-pane" hidden><div class="exportbar"><p>Time across columns; selected metadata down the rows; individuals plus n, mean, SD and CV%.</p><div><button id="export-excel" class="button primary small">↓ Excel workbook</button><button id="export-summary-csv" class="button secondary small">↓ Summary CSV</button></div></div><div class="table-scroller"><table id="summary-table"></table></div></section>
+      <section id="plotdata-pane" class="tab-pane" hidden><div class="exportbar"><p>Unrounded descriptive statistics in long format for reuse or checking calculations.</p><div><button id="export-plot-csv" class="button primary small">↓ Plot data CSV</button><button id="export-all-excel" class="button secondary small">↓ Excel workbook</button></div></div><div class="table-scroller"><table id="plot-data-table"></table></div></section>
+    </section>
+  </div>
+  <p id="status" class="status" role="status" aria-live="polite"></p>
+  <footer><p>Research workflow tool. All calculations run in your browser. CSV parsing and statistics work locally; Excel import/export and plotting use browser-loaded JavaScript libraries. Results should be reviewed before regulatory use.</p></footer>
+</main>
+</body>
+</html>
