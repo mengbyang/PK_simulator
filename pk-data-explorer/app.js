@@ -170,17 +170,20 @@
     if (!rowNames.length || !colNames.length) { Plotly.purge('chart'); $('chart').innerHTML = '<p style="padding:25px">No rows match the current filters.</p>'; return; }
     if (rowNames.length * colNames.length > 48) { $('chart').textContent = 'More than 48 panels selected. Apply filters or choose different panel variables.'; return; }
     const nrow = rowNames.length, ncol = colNames.length;
+    // Reserve a dedicated title band between panel rows so titles never overlap the plot above.
+    const panelHeight = 230, panelGap = 76, topMargin = 80, bottomMargin = 70;
+    const plotAreaHeight = nrow * panelHeight + (nrow - 1) * panelGap;
     const paletteMap = new Map(), traces = [], layout = {
       paper_bgcolor: '#fff', plot_bgcolor: '#fff', font: { family: 'Arial, sans-serif', size: 11, color: '#344a50' },
-      height: 105 + nrow * 260, width: Math.max($('chart').parentElement.clientWidth - 4, 315 * ncol + 95),
-      margin: { l: 75, r: 112, t: 55, b: 65 },
+      height: plotAreaHeight + topMargin + bottomMargin, width: Math.max($('chart').parentElement.clientWidth - 4, 315 * ncol + 95),
+      margin: { l: 75, r: 112, t: topMargin, b: bottomMargin },
       legend: { orientation: 'v', x: 1.01, xanchor: 'left', y: .98, bgcolor: '#ffffffbb', font: { size: 11 } },
       annotations: [], showlegend: true, hovermode: 'closest'
     };
     const xGap = ncol === 1 ? 0 : Math.min(0.045, 0.14 / ncol);
-    const yGap = nrow === 1 ? 0 : Math.min(0.095, 0.16 / nrow);
+    const yGap = nrow === 1 ? 0 : panelGap / plotAreaHeight;
     const xStep = (1 - xGap * (ncol - 1)) / ncol;
-    const yStep = (1 - yGap * (nrow - 1)) / nrow;
+    const yStep = panelHeight / plotAreaHeight;
     const legendSeen = new Set();
     const overallTimes = data.map(r => C.numberOrNull(r[state.time])).filter(t => t !== null);
     const minT = Math.min(...overallTimes), maxT = Math.max(...overallTimes);
@@ -202,8 +205,8 @@
       const panelParts = [];
       if (state.facetRow) panelParts.push(`${state.facetRow}=${rowNames[r]}`);
       if (state.facetCol) panelParts.push(`${state.facetCol}=${colNames[c]}`);
-      layout.annotations.push({ text: panelParts.join(', ') || 'All selected data', x: (x0+x1)/2, y: Math.min(1.03,y1 + .037), xref: 'paper', yref: 'paper', showarrow: false,
-        font: { size: 11, color: '#3d5057' }, xanchor: 'center', yanchor: 'bottom' });
+      layout.annotations.push({ text: panelParts.join(', ') || 'All selected data', x: (x0+x1)/2, y: r === 0 ? 1 + 30 / plotAreaHeight : y1 + yGap / 2, xref: 'paper', yref: 'paper', showarrow: false,
+        font: { size: 11, color: '#3d5057' }, xanchor: 'center', yanchor: 'middle' });
       const panel = data.filter(row => (!state.facetRow || C.label(row[state.facetRow]) === rowNames[r]) && (!state.facetCol || C.label(row[state.facetCol]) === colNames[c]));
       const stats = C.buildStats(panel, { timeCol: state.time, valueCol: state.conc, animalCol: state.animal, groupCols: state.series });
       for (const group of stats.groups) {
@@ -220,7 +223,7 @@
           const visible = ys.some(v => v !== null); if (visible) anyPositive = true;
           traces.push({ ...base, type: 'scatter', mode: 'lines+markers', x: times, y: ys, connectgaps: false,
             line: { color, width: 1.7, shape: 'linear' }, marker: { color, symbol, size: 6 },
-            error_y: state.plotMode === 'mean_sd' ? { type: 'data', array: sd, arrayminus: sd, visible: true, thickness: 1, width: 2, color } : undefined });
+            error_y: state.plotMode === 'mean_sd' ? { type: 'data', symmetric: false, array: sd, arrayminus: sd.map(() => 0), visible: true, thickness: 1, width: 2, color } : undefined });
           legendSeen.add(id);
         }
         if (state.plotMode === 'individual' || state.plotMode === 'mean_individual') {
