@@ -4,7 +4,7 @@
   const C = window.PKCore;
   const $ = id => document.getElementById(id);
   const state = {
-    sheets: {}, filename: '', headers: [], rows: [], time: '', conc: '', animal: '',
+    sheets: {}, filename: '', headers: [], rows: [], time: '', conc: '', animal: '', datasetVersion: 0,
     facetRow: '', facetCol: '', series: [], statGroups: [], filters: {},
     plotMode: 'mean_sd', yScale: 'log', rowMode: 'replicate', sig: 3, notation: 'decimal',
     activeTab: 'plots', stats: null, wide: null, selected: [], plotData: [],
@@ -86,6 +86,7 @@
   }
   function switchSheet(sheet) {
     state.sheet = sheet;
+    state.datasetVersion++;
     const data = C.rowsFromMatrix(state.sheets[sheet] || []);
     if (!data.headers.length || !data.rows.length) throw new Error('This worksheet has no data rows.');
     state.headers = data.headers;
@@ -122,6 +123,7 @@
       renderSummary();
       renderPlotData();
       if (state.activeTab === 'plots') renderPlot();
+      if (state.activeTab === 'nca') window.PKNCAUI?.onDataChange?.();
       setMessage('');
     } catch (err) { console.error(err); setMessage(err.message || 'Unable to analyze data', true); }
   }
@@ -309,6 +311,12 @@
     } catch(err) { setMessage(`Figure export failed: ${err.message}`, true); }
   }
 
+  window.PKExplorerBridge = { getSnapshot: () => ({
+    headers: [...state.headers], selected: state.selected, time: state.time, conc: state.conc, animal: state.animal,
+    statGroups: [...state.statGroups], sig: state.sig, notation: state.notation, filename: state.filename, sheet: state.sheet,
+    datasetVersion: state.datasetVersion, activeTab: state.activeTab
+  }) };
+
   // Events
   $('file-input').addEventListener('change', e => importFile(e.target.files[0]));
   $('demo-button').addEventListener('click', async () => {
@@ -339,8 +347,9 @@
   document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => {
     state.activeTab = tab.dataset.tab;
     document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active',x === tab));
-    ['plots','summary','plotdata'].forEach(pane => $(`${pane}-pane`).hidden = pane !== state.activeTab);
+    ['plots','summary','plotdata','nca'].forEach(pane => $(`${pane}-pane`).hidden = pane !== state.activeTab);
     if (state.activeTab === 'plots') renderPlot();
+    if (state.activeTab === 'nca') window.PKNCAUI?.onTab?.();
   }));
   $('export-png').addEventListener('click', () => exportFigure('png'));
   $('export-svg').addEventListener('click', () => exportFigure('svg'));
