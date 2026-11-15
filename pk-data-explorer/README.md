@@ -87,3 +87,16 @@ NCA results download as a precision-formatted CSV or an Excel workbook containin
 Run `node test-nca.cjs` for numerical and regression tests, or `node test-core.cjs` for the Phase 1 functions. The original uploaded example datasets are deliberately not included in the public repository.
 
 References: [Certara Phoenix Lambda Z estimation](https://onlinehelp.certara.com/phoenix/8.6/Phoenix_UserDocs/NCA_Object/Lambda_Z_or_Slope_Estimation_settings.htm), [NCA parameter formulas](https://onlinehelp.certara.com/phoenix/8.4/Phoenix_UserDocs/NCA_Object/NCA_parameter_formulas.htm), [Sparse sampling](https://onlinehelp.certara.com/phoenix/8.4/Phoenix_UserDocs/NCA_Object/Sparse_sampling_calculation.htm).
+
+
+## Version 2.1: Route-specific single-dose NCA
+
+- **Actual sampling time** can be selected independently of nominal time used for Phase 1 group statistics. Important when nominal Hour=0 indicates a sample collected 0.05 h after dosing.
+- A separate **dose and route by profile** table lists all NCA profiles (group or individual), reads numerical dose and route from available columns, and permits edits to either value. Different dose levels are automatically separated for NCA even if not selected in Phase 1 grouping.
+- **IV bolus** uses C0 at dose time if an actual postdose observation is present. Otherwise log-linearly back-extrapolates C0 from the first two declining positive postdose points; if unsuitable, uses the first postdose concentration. The estimation method is recorded. Time-zero convention can be specified. AUC integrates from dose time when C0 is available. A synthetic C0 is never used for terminal fitting.
+- **Extravascular single dose** may insert zero at dosing time; reports CL/F and Vz/F, but not Vss. IV bolus reports CL, Vz and Vss. IV infusion and multiple dosing are **not implemented**.
+- Systemic CL/volume calculations require positive dose, a terminal λz, and parent drug concentration in plasma/blood with compatible units. For a dose in mg/kg and concentrations in ng/mL, clearance is L/h/kg and volume is L/kg. Unavailable parameters are NA. Tissue and metabolite profiles should not have systemic CL/volume enabled.
+- Explicit NCA parameter units appear in the table and exported CSV header, with Excel Parameter Units and Dose and Route sheets.
+- An optional selection panel chooses NCA parameter columns without recalculating NCA. CSV and Excel summary exports follow the same selection.
+- Input values such as BLQ and **-prefixed numbers are nonnumeric and excluded, while numeric zero is retained.
+- The NCA examples in the actual study dataset are **not included** in the public GitHub repository. Use independent validation before regulatory applications.
