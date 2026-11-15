@@ -57,3 +57,33 @@ Run `node test-core.cjs` in this folder. This test uses the locally supplied `An
 - For very large data files, wide summary rendering and high-panel-count plots may be slower; the app limits a single plotting view to 48 panels.
 - For a group/time with multiple samples for one animal, the animal-layout cell lists all observed values, while group n counts all numeric records.
 - This research tool is not independently validated for GxP submission. Review exported statistics against source data before regulated reporting.
+
+
+## Phase 2: Noncompartmental analysis (NCA)
+
+Open the **NCA · Phase 2** results tab after uploading sample-level CSV/XLSX data. Do **not** upload a table of previously calculated PK parameters: input must contain observations, sampling times, and grouping metadata. NCA uses the same time/concentration column mappings, selected rows and summary grouping variables as the plots/statistics module.
+
+### Workflows and parameters
+
+- **Sparse sampling** (default): derive arithmetic mean concentration and sample standard error at each unique nominal time. Suitable for terminal tissue collection, with individual animal identifiers used for covariance in linear trapezoidal SE_AUC calculations.
+- **Individual sampling**: estimate NCA per animal. A single observed concentration cannot form a longitudinal PK profile; it is not converted to a pseudo-profile by automatically adding zero at dose time.
+- Includes the columns in the reference parameter table: `Rsq_adjusted`, `HL_Lambda_z`, `Span`, `Tmax`, `Cmax`, `SE_Cmax`, `Tlast`, `Clast`, `AUClast`, `SE_AUClast`, `AUCall`, `SE_AUCall`, `AUCINF_obs`, `AUC_%Extrap_obs`, `Vz_F_obs`, `Cl_F_obs`, `MRTlast`, `AUMClast`, `AUMCINF_obs`, `AUMC_%Extrap_obs`, and `MRTINF_obs`. Extra columns show Lambda_z, unadjusted R², start/end terminal time, number of terminal points, and diagnostics.
+- Choose **linear trapezoidal**, **linear up/log down**, or **linear before Tmax/log after** AUC/AUMC integration. Sparse `SE_AUClast` and `SE_AUCall` are calculated only for linear trapezoidal integration. Linear AUMC follows the WinNonlin trapezoidal rule applied to `t×C`.
+- Optional insertion of a concentration **zero at the dose time for extravascular** profiles when there is no observed dose-time sample. Never inserts an IV bolus C0. Non-numeric results are omitted; zero is included in arithmetic means and AUC, but never in log-linear terminal regression.
+- `Cl_F_obs` and `Vz_F_obs` are computed only when requested with a valid dose; appropriate unit selection is required. A dose divided by **tissue** or **metabolite** exposure is *not* interpretable as systemic clearance/volume. These ratios are off by default.
+
+### Automatic and manual terminal-fit rules
+
+Phoenix-style automatic **Best Fit** enumerates all consecutive suffixes of 3 or more positive eligible terminal concentrations, with the fit ending at Tlast, and selects the largest adjusted R². If multiple candidates fall within 0.0001 of the global maximum, the one with more points is used. Only negative-slope fits are permitted. By default Cmax is excluded (the reference tissue example uses this rule); you can select **Auto IV bolus by route** or **IV bolus** to allow inclusion of Cmax. Regression uses unweighted least squares of natural log concentration against time.
+
+Select a profile to inspect the observed concentration-time points and its terminal fit, compare candidate windows, manually choose >=3 positive points, or restore the automatic fit. Export a diagnostic figure and the full candidate-fit table. Warning rules for adjusted R² below 0.90, terminal span below 2 half-lives, and AUC extrapolation above 20% are **review alerts**, not automatic fit rejections or regulatory criteria.
+
+**NCA limits:** current module targets single-dose discrete concentration profiles, not repeat-dose steady-state, infusion, urine interval, corrected C0 estimation for IV bolus, or automated BLQ imputation. Terminal fit requires scientific review. Data are processed in the browser and must be independently checked before use in regulated documentation.
+
+### Export and testing
+
+NCA results download as a precision-formatted CSV or an Excel workbook containing numeric results, all candidate terminal regressions, underlying profiles, and the analysis settings. Significant digits and scientific/decimal formatting follow the main Results settings. The manual terminal-fit selection is captured in exported results.
+
+Run `node test-nca.cjs` for numerical and regression tests, or `node test-core.cjs` for the Phase 1 functions. The original uploaded example datasets are deliberately not included in the public repository.
+
+References: [Certara Phoenix Lambda Z estimation](https://onlinehelp.certara.com/phoenix/8.6/Phoenix_UserDocs/NCA_Object/Lambda_Z_or_Slope_Estimation_settings.htm), [NCA parameter formulas](https://onlinehelp.certara.com/phoenix/8.4/Phoenix_UserDocs/NCA_Object/NCA_parameter_formulas.htm), [Sparse sampling](https://onlinehelp.certara.com/phoenix/8.4/Phoenix_UserDocs/NCA_Object/Sparse_sampling_calculation.htm).
