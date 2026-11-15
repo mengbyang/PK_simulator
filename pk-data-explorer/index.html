@@ -10,6 +10,8 @@
   <script defer src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
   <script defer src="./core.js"></script>
   <script defer src="./app.js"></script>
+  <script defer src="./nca-core.js"></script>
+  <script defer src="./nca-ui.js"></script>
 </head>
 <body>
 <header class="topbar">
@@ -58,10 +60,49 @@
     </section>
 
     <section class="panel outputs"><div class="panel-top output-heading"><div><h2><span class="step">03</span> Results and downloads</h2><p id="result-info"></p></div></div>
-      <nav class="tabs" aria-label="Output views"><button class="tab active" data-tab="plots" type="button">Concentration–time plots</button><button class="tab" data-tab="summary" type="button">Statistical summary</button><button class="tab" data-tab="plotdata" type="button">Plot dataset</button></nav>
+      <nav class="tabs" aria-label="Output views"><button class="tab active" data-tab="plots" type="button">Concentration–time plots</button><button class="tab" data-tab="summary" type="button">Statistical summary</button><button class="tab" data-tab="plotdata" type="button">Plot dataset</button><button class="tab" data-tab="nca" type="button">NCA · Phase 2</button></nav>
       <section id="plots-pane" class="tab-pane"><div class="exportbar"><p>Points are connected with straight lines only; no fitted or smoothed curves.</p><div><button id="export-png" class="button primary small">↓ PNG figure</button><button id="export-svg" class="button secondary small">↓ SVG figure</button></div></div><div class="chart-scroller"><div id="chart"></div></div><p id="plot-note" class="help">For log plots, nonpositive concentrations are not displayed, but they remain included in the statistics.</p></section>
       <section id="summary-pane" class="tab-pane" hidden><div class="exportbar"><p>Time across columns; selected metadata down the rows; individuals plus n, mean, SD and CV%.</p><div><button id="export-excel" class="button primary small">↓ Excel workbook</button><button id="export-summary-csv" class="button secondary small">↓ Summary CSV</button></div></div><div class="table-scroller"><table id="summary-table"></table></div></section>
       <section id="plotdata-pane" class="tab-pane" hidden><div class="exportbar"><p>Unrounded descriptive statistics in long format for reuse or checking calculations.</p><div><button id="export-plot-csv" class="button primary small">↓ Plot data CSV</button><button id="export-all-excel" class="button secondary small">↓ Excel workbook</button></div></div><div class="table-scroller"><table id="plot-data-table"></table></div></section>
+      <section id="nca-pane" class="tab-pane nca-pane" hidden>
+        <div class="exportbar"><p>Single-dose discrete NCA with Phoenix-style automatic terminal fitting. Uses the selected study data and current statistical grouping variables.</p>
+          <div><button id="nca-export-excel" class="button primary small" type="button">↓ NCA Excel workbook</button><button id="nca-export-csv" class="button secondary small" type="button">↓ NCA CSV</button></div></div>
+        <div class="nca-config">
+          <fieldset class="config-card"><legend>Analysis and integration</legend>
+            <label class="field">Analysis profiles<select id="nca-mode"><option value="sparse">Sparse sampling — group-mean curves</option><option value="individual">Serial sampling — individual animals</option></select></label>
+            <p class="help">NCA grouping: <strong id="nca-grouping"></strong> (edit in the Summary table configuration above).</p>
+            <label class="field">AUC/AUMC method<select id="nca-method"><option value="linear">Linear trapezoidal (sparse SE supported)</option><option value="linup_logdown">Linear up / log down</option><option value="linlog">Linear before Tmax / log after Tmax</option></select></label>
+            <label class="check-chip"><input type="checkbox" id="nca-insertzero" checked> Assume C(0)=0 for extravascular profiles if missing</label>
+            <label class="field">Dose time (h)<input type="number" id="nca-dose-time" step="any" value="0"></label>
+            <label class="field">Concentration matrix unit<select id="nca-unit"><option value="ng/mL">ng/mL (plasma)</option><option value="ng/g" selected>ng/g (tissue)</option></select></label>
+          </fieldset>
+          <fieldset class="config-card"><legend>Dose and terminal-phase selection</legend>
+            <div class="two-col"><label class="field">Route column<select id="nca-route-col"></select></label><label class="field">Dose column<select id="nca-dose-col"></select></label></div>
+            <div class="two-col"><label class="field">Manual dose (fallback)<input id="nca-dose" type="number" step="any" min="0" placeholder="Optional"></label>
+            <label class="field">Dose unit<select id="nca-dose-unit"><option value="mg/kg">mg/kg</option><option value="mg">mg</option><option value="ng/kg">ng/kg</option><option value="ng">ng</option></select></label></div>
+            <label class="check-chip"><input type="checkbox" id="nca-ratios"> Compute dose/AUC and dose/(λz·AUC) ratios (Cl_F_obs, Vz_F_obs)</label>
+            <p class="help">These ratios for tissue or metabolites are <strong>not physiological systemic clearance or distribution volume.</strong></p>
+            <label class="check-chip"><input type="checkbox" id="nca-ivbolus"> Treat all profiles as IV bolus (only if route column is not mapped)</label>
+            <div class="two-col"><label class="field">Minimum terminal points<input type="number" id="nca-minpoints" min="3" max="15" value="3" step="1"></label>
+              <label class="field">Maximum terminal points<input type="number" id="nca-maxpoints" min="3" max="100" step="1" placeholder="Unlimited"></label></div>
+            <label class="field">Earliest permitted terminal-fit time (h)<input type="number" id="nca-earliest" step="any" placeholder="No restriction"></label>
+          </fieldset>
+        </div>
+        <p id="nca-count" class="help"></p>
+        <div class="table-scroller nca-table-scroller"><table id="nca-summary"></table></div>
+        <div class="nca-review-header"><div><h3>Terminal-phase review</h3><p class="help">Select any profile to inspect the automatic fit, alternative suffix windows, and manual point selection. Fits use ln(concentration) versus time, without curve smoothing.</p></div>
+          <div><button id="nca-export-diagnostics" class="button secondary small" type="button">↓ Candidate fits CSV</button></div></div>
+        <p id="nca-review-empty" class="help" hidden></p>
+        <div id="nca-review" class="nca-review" hidden>
+          <label class="field">Profile to review<select id="nca-profile"></select></label>
+          <p id="nca-fit-status" class="nca-fit-status"></p>
+          <div class="nca-diagnostic-grid"><div class="nca-diagnostic-chart"><div id="nca-chart"></div><div class="nca-export-plots"><button id="nca-export-fig-png" class="button secondary small" type="button">↓ PNG</button><button id="nca-export-fig-svg" class="button secondary small" type="button">↓ SVG</button></div></div>
+            <div class="nca-manual"><h4>Manual terminal points</h4><p class="help">Choose at least 3 positive points; selected points need a negative fitted slope.</p><div id="nca-manual-points" class="picks"></div><div class="nca-manual-actions"><button id="nca-manual-apply" class="button primary small" type="button">Use selected points</button><button id="nca-auto-reset" class="button secondary small" type="button">Restore auto best fit</button></div></div></div>
+          <h4>Automatic candidate terminal windows</h4><div class="table-scroller nca-candidate-scroll"><table id="nca-candidates"></table></div>
+        </div>
+        <p id="nca-note" class="status" role="status" aria-live="polite"></p>
+        <p class="help">Diagnostics (adjusted R² &lt; 0.90, span &lt; 2 half-lives, or AUC extrapolation &gt; 20%) are advisory warnings, not automatic rejections. Study-suitable terminal-phase selection requires scientific review. Sparse AUC SE is available with the linear trapezoid method.</p>
+      </section>
     </section>
   </div>
   <p id="status" class="status" role="status" aria-live="polite"></p>
