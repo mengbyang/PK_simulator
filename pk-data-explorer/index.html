@@ -82,7 +82,7 @@
             <label class="field">Dose unit<select id="nca-dose-unit"><option value="mg/kg">mg/kg</option><option value="mg">mg</option><option value="ng/kg">ng/kg</option><option value="ng">ng</option></select></label></div>
             <label class="check-chip"><input type="checkbox" id="nca-ratios"> Compute dose/AUC and dose/(λz·AUC) ratios (Cl_F_obs, Vz_F_obs)</label>
             <p class="help">These ratios for tissue or metabolites are <strong>not physiological systemic clearance or distribution volume.</strong></p>
-            <label class="check-chip"><input type="checkbox" id="nca-ivbolus"> Treat all profiles as IV bolus (only if route column is not mapped)</label>
+            <label class="field">Terminal candidate model<select id="nca-terminal-model"><option value="nonbolus">Non-bolus: exclude Cmax (default; matches reference tissue table)</option><option value="infer">Auto: allow Cmax for IV bolus according to route column</option><option value="bolus">IV bolus: allow Cmax in every profile</option></select></label>
             <div class="two-col"><label class="field">Minimum terminal points<input type="number" id="nca-minpoints" min="3" max="15" value="3" step="1"></label>
               <label class="field">Maximum terminal points<input type="number" id="nca-maxpoints" min="3" max="100" step="1" placeholder="Unlimited"></label></div>
             <label class="field">Earliest permitted terminal-fit time (h)<input type="number" id="nca-earliest" step="any" placeholder="No restriction"></label>
