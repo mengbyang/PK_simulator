@@ -43,11 +43,10 @@
     return outputs;
   }
   function chooseBest(candidates) {
-    let best=null;
-    for (const fit of candidates) {
-      if(!best || fit.adjR2 > best.adjR2+1e-4 || (Math.abs(fit.adjR2-best.adjR2)<=1e-4 && fit.n>best.n)) best=fit;
-    }
-    return best;
+    if(!candidates.length)return null;
+    const maximum=Math.max(...candidates.map(f=>f.adjR2));
+    // Rank against the global maximum (not a drifting pairwise comparison).
+    return candidates.filter(f=>maximum-f.adjR2<=1e-4+1e-12).sort((a,b)=>b.n-a.n)[0];
   }
   function manualFit(profile,times) {
     if(!times || times.length<3) return null;
@@ -103,7 +102,7 @@
         if(finite(auc)&&finite(aumc))return {auc,aumc};
       }
     }
-    return {auc:dt*(c0+c1)/2, aumc:dt*((2*a.t+b.t)*c0+(a.t+2*b.t)*c1)/6};
+    return {auc:dt*(c0+c1)/2, aumc:dt*(a.t*c0+b.t*c1)/2};
   }
   function integration(points,method,tmax) {
     let auc=0,aumc=0;
@@ -114,7 +113,8 @@
     const {method='linear', ivBolus=false, isSparse=false, dose=null, doseUnit='mg/kg', concUnit='ng/mL', includeDoseRatios=false,
       manualTimes=null, minPoints=3, maxPoints=null, earliest=null, assumeZeroAtDose=false, doseTime=0}=opts;
     const points=[...profile].filter(p=>finite(p.t)&&finite(p.c)&&p.t>=doseTime).sort((a,b)=>a.t-b.t);
-    if(!points.length)return null;
+    // A synthetic C(0) must never turn a single observed sample into a pseudo-PK profile.
+    if(points.length<2)return null;
     const warnings=[];
     if(points.some(p=>p.c<0)) warnings.push('Negative concentration was included as supplied; review its interpretation.');
     if(points[0].t>doseTime && assumeZeroAtDose && !ivBolus) points.unshift({t:doseTime,c:0,samples:[],inserted:true});
@@ -185,7 +185,8 @@
       const times=new Map();
       for(const p of group.rows){if(!times.has(p.t))times.set(p.t,[]);times.get(p.t).push(p);}
       const curve=[...times.entries()].map(([t,samples])=>({t,c:mode==='sparse'?C.summarize(samples.map(s=>s.c)).mean:samples.length===1?samples[0].c:C.summarize(samples.map(s=>s.c)).mean,samples})).sort((a,b)=>a.t-b.t);
-      const ivBolus=routeCol?/^(iv|intravenous)(?:\s*bolus)?$/i.test(group.route):options.ivBolus===true;
+      const strategy=options.terminalModel||'nonbolus';
+      const ivBolus=strategy==='bolus' || (strategy==='infer' && (routeCol?/^(iv|intravenous)(?:\s*bolus)?$/i.test(group.route):options.ivBolus===true));
       const dose=group.dose==null?options.dose:group.dose;
       const manualTimes=options.manualOverrides?.[group.id]??null;
       const nca=calcProfile(curve,{...options,ivBolus, dose, manualTimes,isSparse:mode==='sparse'});
