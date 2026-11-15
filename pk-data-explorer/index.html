@@ -89,6 +89,15 @@
           </fieldset>
         </div>
         <p id="nca-count" class="help"></p>
+        <details class="nca-parameter-settings">
+          <summary>Parameters shown in NCA table <span id="nca-parameter-count" class="tag">All selected</span></summary>
+          <div class="nca-param-actions">
+            <button id="nca-select-all" type="button" class="button secondary small">Select all</button>
+            <button id="nca-select-none" type="button" class="button ghost small">Clear selection</button>
+            <span class="help">Grouping columns remain visible. Selection also applies to NCA summary exports.</span>
+          </div>
+          <div id="nca-parameter-picks" class="nca-parameter-picks" role="group" aria-label="NCA parameters to display"></div>
+        </details>
         <div class="table-scroller nca-table-scroller"><table id="nca-summary"></table></div>
         <div class="nca-review-header"><div><h3>Terminal-phase review</h3><p class="help">Select any profile to inspect the automatic fit, alternative suffix windows, and manual point selection. Fits use ln(concentration) versus time, without curve smoothing.</p></div>
           <div><button id="nca-export-diagnostics" class="button secondary small" type="button">↓ Candidate fits CSV</button></div></div>
