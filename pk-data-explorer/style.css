@@ -15,3 +15,11 @@
 .nca-review>h4{margin:12px 0;font-size:13px}.nca-candidate-scroll{max-height:380px}
 .nca-diagnostic-chart{overflow:auto}
 @media(max-width:850px){.nca-config,.nca-diagnostic-grid{grid-template-columns:minmax(0,1fr)}}
+/* Phase 2: configurable NCA output columns */
+.nca-parameter-settings{border:1px solid var(--line);border-radius:9px;padding:11px 14px;margin:12px 0;background:#fbfdfd}
+.nca-parameter-settings>summary{cursor:pointer;font-weight:750;font-size:13px;color:var(--dark);user-select:none}
+.nca-parameter-settings>summary .tag{margin-left:8px}
+.nca-param-actions{display:flex;align-items:center;gap:8px;margin:13px 0;flex-wrap:wrap}
+.nca-param-actions .help{margin:0}
+.nca-parameter-picks{display:grid;grid-template-columns:repeat(auto-fill,minmax(188px,1fr));gap:7px;max-height:225px;overflow-y:auto;padding:4px}
+.nca-parameter-picks .check-chip{display:flex;gap:8px;overflow-wrap:anywhere}
