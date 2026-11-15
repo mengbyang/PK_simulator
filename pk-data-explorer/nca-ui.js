@@ -168,7 +168,7 @@
   initParameterPicker();
   // Settings live-update; manual overrides persist until source or grouping changes.
   document.querySelectorAll('#nca-pane input,#nca-pane select').forEach(input=>{
-    if(['nca-profile'].includes(input.id))return;
+    if(input.id==='nca-profile' || input.matches('[data-nca-param]'))return;
     input.addEventListener('change',()=>{
       const s=get(), newKey=JSON.stringify(colsForGrouping(s));
       if(configKey && configKey!==newKey)manualOverrides={};
