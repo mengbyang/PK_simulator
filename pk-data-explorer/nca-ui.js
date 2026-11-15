@@ -6,6 +6,32 @@
   const settings={ mode:'sparse',method:'linear',routeCol:'',doseCol:'',dose:null,doseUnit:'mg/kg',concUnit:'ng/g',
     includeDoseRatios:false,assumeZeroAtDose:true,minPoints:3,maxPoints:null,earliest:null,doseTime:0,terminalModel:'nonbolus' };
   let results=[], manualOverrides={}, loadedKey='', reviewedId='', configKey='';
+  // Display/export selection only: NCA continues to calculate every parameter.
+  const selectedParameters=new Set(N.OUTPUT_COLUMNS);
+  const outputColumns=()=>N.OUTPUT_COLUMNS.filter(k=>selectedParameters.has(k));
+  function syncParameterPicker() {
+    $('nca-parameter-count').textContent=`${selectedParameters.size} of ${N.OUTPUT_COLUMNS.length} selected`;
+    $('nca-parameter-picks').querySelectorAll('input[data-nca-param]').forEach(box=>{box.checked=selectedParameters.has(box.value);});
+    $('nca-export-csv').disabled=$('nca-export-excel').disabled=selectedParameters.size===0;
+  }
+  function refreshParameterTable() {
+    syncParameterPicker();
+    const s=get();
+    if(s?.headers?.length && results.length)buildTable(s,colsForGrouping(s));
+    else if(!selectedParameters.size)$('nca-summary').innerHTML='<tbody><tr><td>Select one or more PK parameters to display.</td></tr></tbody>';
+  }
+  function initParameterPicker() {
+    $('nca-parameter-picks').innerHTML=N.OUTPUT_COLUMNS.map(k=>`<label class="check-chip"><input type="checkbox" data-nca-param value="${escape(k)}" checked>${escape(k)}</label>`).join('');
+    $('nca-parameter-picks').addEventListener('change',e=>{
+      if(!e.target.matches('input[data-nca-param]'))return;
+      if(e.target.checked)selectedParameters.add(e.target.value);
+      else selectedParameters.delete(e.target.value);
+      refreshParameterTable();
+    });
+    $('nca-select-all').addEventListener('click',()=>{N.OUTPUT_COLUMNS.forEach(k=>selectedParameters.add(k));refreshParameterTable();});
+    $('nca-select-none').addEventListener('click',()=>{selectedParameters.clear();refreshParameterTable();});
+    syncParameterPicker();
+  }
   const get=()=>window.PKExplorerBridge?.getSnapshot?.();
   const msg=(t,bad=false)=>{if($('nca-note')){$('nca-note').textContent=t;$('nca-note').className=bad?'status error':'status';}};
   const opt=(values,selected,blank=true)=> (blank?'<option value="">(none)</option>':'') + values.map(h=>`<option value="${escape(h)}" ${h===selected?'selected':''}>${escape(h)}</option>`).join('');
@@ -57,10 +83,12 @@
     } catch(e) {console.error(e);msg('NCA calculation failed: '+e.message,true);}
   }
   function buildTable(s,groups) {
-    const cols=[...groups,...(settings.mode==='individual'?[s.animal||'Animal ID']:[]),...N.OUTPUT_COLUMNS];
+    const visible=outputColumns();
+    if(!visible.length){$('nca-summary').innerHTML='<tbody><tr><td>Select one or more PK parameters to display.</td></tr></tbody>';return;}
+    const cols=[...groups,...(settings.mode==='individual'?[s.animal||'Animal ID']:[]),...visible];
     let html='<thead><tr>'+cols.map(col=>`<th title="${escape(col)}">${escape(col)}</th>`).join('')+'</tr></thead><tbody>';
     for(const p of results){
-      html+='<tr>'+[...p.labels,...(settings.mode==='individual'?[p.animal]:[]),...N.OUTPUT_COLUMNS.map(col=>p.result[col])].map(v=>`<td>${escape(valFmt(v,s))}</td>`).join('')+'</tr>';
+      html+='<tr>'+[...p.labels,...(settings.mode==='individual'?[p.animal]:[]),...visible.map(col=>p.result[col])].map(v=>`<td>${escape(valFmt(v,s))}</td>`).join('')+'</tr>';
     }
     $('nca-summary').innerHTML=html+'</tbody>';
   }
@@ -104,13 +132,13 @@
   function selectManual(times) {const s=get();manualOverrides[reviewedId]=times;compute();}
   function toCSV(matrix,suffix) {const s=get();const b=new Blob(['\uFEFF',C.toCSV(matrix)],{type:'text/csv;charset=utf-8'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=fileStem(s)+'_'+suffix+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(u),2000);}
   function exportRows(s) {
-    const groups=colsForGrouping(s),head=[...groups,...(settings.mode==='individual'?[s.animal||'Animal ID']:[]),...N.OUTPUT_COLUMNS];
-    const rows=results.map(p=>[...p.labels,...(settings.mode==='individual'?[p.animal]:[]),...N.OUTPUT_COLUMNS.map(k=>p.result[k]??'NA')]);
+    const groups=colsForGrouping(s),visible=outputColumns(),head=[...groups,...(settings.mode==='individual'?[s.animal||'Animal ID']:[]),...visible];
+    const rows=results.map(p=>[...p.labels,...(settings.mode==='individual'?[p.animal]:[]),...visible.map(k=>p.result[k]??'NA')]);
     const diagHead=[...groups,...(settings.mode==='individual'?[s.animal||'Animal ID']:[]),'Selected','N_points','Start','End','Lambda_z','Half_life','R2','Adjusted_R2','Span','Times'];
     const diag=results.flatMap(p=>p.candidates.map(q=>[...p.labels,...(settings.mode==='individual'?[p.animal]:[]),p.fit?.times.join(',')===q.times.join(',')?'Yes':'No',q.n,q.start,q.end,q.lambda,q.halfLife,q.r2,q.adjR2,q.span,q.times.join('; ')]));
     const concHead=[...groups,...(settings.mode==='individual'?[s.animal||'Animal ID']:[]),'Time','Concentration','n','SE_mean','Included_in_terminal'];
     const conc=results.flatMap(p=>p.points.filter(q=>!q.inserted).map(q=>[...p.labels,...(settings.mode==='individual'?[p.animal]:[]),q.t,q.c,q.samples?.length||0,q.samples?.length>=2?Math.sqrt(C.summarize(q.samples.map(v=>v.c)).sd**2/q.samples.length):'NA',p.fit?.times.includes(q.t)?'Yes':'No']));
-    return {summary:[head,...rows],diagnostics:[diagHead,...diag],profile:[concHead,...conc],settings:[['Setting','Value'],['Input file',s.filename],['Time column',s.time],['Concentration column',s.conc],['Analysis type',settings.mode],['Curve grouping',groups.join(' / ')],['AUC method',settings.method],['Terminal candidate model',settings.terminalModel],['Automatic terminal fit','Positive suffix windows, >= minimum points, highest adjusted R2; longer window within 0.0001'],['Min terminal points',settings.minPoints],['Max terminal points',settings.maxPoints??'None'],['Earliest fit time',settings.earliest??'None'],['Dose time',settings.doseTime],['Route column',settings.routeCol],['Dose column',settings.doseCol],['Manual dose',settings.dose??'None'],['Dose units',settings.doseUnit],['Concentration units',settings.concUnit],['Compute dose-normalized ratios',settings.includeDoseRatios],['Initial zero for extravascular',settings.assumeZeroAtDose],['Important limitation','Dose/AUC ratios from tissue or metabolite data do not establish systemic clearance or distribution volume'],['Interpretation','Terminal phase must be reviewed; flags are advisory'],['Numeric missing values','Excluded'],['Zero input','Included in means and AUC; excluded from ln terminal regression']]};
+    return {summary:[head,...rows],diagnostics:[diagHead,...diag],profile:[concHead,...conc],settings:[['Setting','Value'],['Input file',s.filename],['Time column',s.time],['Concentration column',s.conc],['Analysis type',settings.mode],['Curve grouping',groups.join(' / ')],['Displayed parameters',visible.join(', ')],['AUC method',settings.method],['Terminal candidate model',settings.terminalModel],['Automatic terminal fit','Positive suffix windows, >= minimum points, highest adjusted R2; longer window within 0.0001'],['Min terminal points',settings.minPoints],['Max terminal points',settings.maxPoints??'None'],['Earliest fit time',settings.earliest??'None'],['Dose time',settings.doseTime],['Route column',settings.routeCol],['Dose column',settings.doseCol],['Manual dose',settings.dose??'None'],['Dose units',settings.doseUnit],['Concentration units',settings.concUnit],['Compute dose-normalized ratios',settings.includeDoseRatios],['Initial zero for extravascular',settings.assumeZeroAtDose],['Important limitation','Dose/AUC ratios from tissue or metabolite data do not establish systemic clearance or distribution volume'],['Interpretation','Terminal phase must be reviewed; flags are advisory'],['Numeric missing values','Excluded'],['Zero input','Included in means and AUC; excluded from ln terminal regression']]};
   }
   function downloadExcel() {
     const s=get();if(!window.XLSX){msg('Excel library unavailable; use CSV instead.',true);return;}
@@ -137,6 +165,7 @@
     try{await Plotly.downloadImage($('nca-chart'),{format:fmt,filename:fileStem(s)+'_terminal_fit',width:900,height:520,scale:fmt==='png'?2:1});}
     catch(e){msg('Unable to export plot: '+e.message,true);}
   }
+  initParameterPicker();
   // Settings live-update; manual overrides persist until source or grouping changes.
   document.querySelectorAll('#nca-pane input,#nca-pane select').forEach(input=>{
     if(['nca-profile'].includes(input.id))return;
@@ -157,7 +186,7 @@
     selectManual(times);
   });
   $('nca-auto-reset').addEventListener('click',()=>{delete manualOverrides[reviewedId];compute();});
-  $('nca-export-csv').addEventListener('click',()=>{const snap=get(), table=exportRows(snap).summary; const nGroup=colsForGrouping(snap).length+(settings.mode==='individual'?1:0); const formatted=table.map((row,i)=>i===0?row:row.map((v,j)=>j<nGroup||N.OUTPUT_COLUMNS[j-nGroup]==='No_points_lambda_z'||N.OUTPUT_COLUMNS[j-nGroup]==='N_Samples'?v:typeof v==='number'?C.formatNumber(v,snap.sig,snap.notation):v)); toCSV(formatted,'NCA_summary');});
+  $('nca-export-csv').addEventListener('click',()=>{const snap=get(), table=exportRows(snap).summary; const nGroup=colsForGrouping(snap).length+(settings.mode==='individual'?1:0); const formatted=table.map((row,i)=>i===0?row:row.map((v,j)=>j<nGroup||table[0][j]==='No_points_lambda_z'||table[0][j]==='N_Samples'?v:typeof v==='number'?C.formatNumber(v,snap.sig,snap.notation):v)); toCSV(formatted,'NCA_summary');});
   $('nca-export-excel').addEventListener('click',downloadExcel);
   $('nca-export-diagnostics').addEventListener('click',()=>toCSV(exportRows(get()).diagnostics,'terminal_candidates'));
   $('nca-export-fig-png').addEventListener('click',()=>exportPlot('png'));
